@@ -1,6 +1,6 @@
 module github.com/oxplot/tcp2ws
 
-go 1.21.3
+go 1.21
 
 require nhooyr.io/websocket v1.8.7
 
