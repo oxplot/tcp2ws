@@ -1,0 +1,4 @@
+builds:
+  - id: tcp2ws
+    main: ./cmd/tcp2ws
+    binary: tcp2ws
