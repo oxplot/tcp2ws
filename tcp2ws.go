@@ -8,39 +8,27 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"time"
 
 	"nhooyr.io/websocket"
 )
 
-// TCPHandler handles a TCP connection and forwards it to a WebSocket server.
-type TCPHandler struct {
-	wsURL string
-}
-
-// NewTCPHandler creates a new TCPHandler that forwards TCP connections to the
-// given WebSocket server.
-func NewTCPHandler(wsURL string) *TCPHandler {
-	return &TCPHandler{
-		wsURL: wsURL,
-	}
-}
-
-// Handle handles a TCP connection and forwards it to a WebSocket server.
+// ForwardTCP handles a TCP connection and forwards it to a WebSocket server.
 // Handle blocks until the connection is closed or ctx is canceled.
-// Handle can be called multiple times concurrently.
-func (h *TCPHandler) Handle(ctx context.Context, c net.Conn) error {
-	defer c.Close()
+func ForwardTCP(ctx context.Context, tcpConn net.Conn, websocketURL string) error {
+	defer tcpConn.Close()
 
-	wsConn, _, err := websocket.Dial(ctx, h.wsURL, nil)
+	wsConn, _, err := websocket.Dial(ctx, websocketURL, nil)
 	if err != nil {
 		return err
 	}
 	defer wsConn.Close(websocket.StatusNormalClosure, "")
 
-	return pipeConns(ctx, wsConn, c)
+	return Pipe(ctx, wsConn, tcpConn, false)
 }
 
-func pipeConns(ctx context.Context, ws *websocket.Conn, tcp net.Conn) error {
+// Pipe forwards data between a WebSocket connection and a TCP connection.
+func Pipe(ctx context.Context, ws *websocket.Conn, tcp net.Conn, wsPing bool) error {
 	ctx, cancel := context.WithCancel(ctx)
 	errCh := make(chan error, 5)
 
@@ -87,14 +75,20 @@ func pipeConns(ctx context.Context, ws *websocket.Conn, tcp net.Conn) error {
 		}
 	}()
 
-	// go func() {
-	// 	for {
-	// 		time.Sleep(time.Second * 10)
-	// 		if err := ws.Ping(ctx); err != nil {
-	// 			return
-	// 		}
-	// 	}
-	// }()
+	if wsPing {
+		go func() {
+			defer cancel()
+			for {
+				tctx, tcancel := context.WithTimeout(ctx, 4800*time.Millisecond)
+				if err := ws.Ping(tctx); err != nil {
+					tcancel()
+					return
+				}
+				tcancel()
+				time.Sleep(time.Second * 5)
+			}
+		}()
+	}
 
 	<-ctx.Done()
 
@@ -107,20 +101,8 @@ func pipeConns(ctx context.Context, ws *websocket.Conn, tcp net.Conn) error {
 	return err
 }
 
-// WSHandler handles a WebSocket connection and forwards it to a TCP server.
-type WSHandler struct {
-	tcpAddr string
-}
-
-// NewWSHandler creates a new WSHandler that forwards WebSocket connections to
-// the given TCP server.
-func NewWSHandler(tcpAddr string) *WSHandler {
-	return &WSHandler{
-		tcpAddr: tcpAddr,
-	}
-}
-
-func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// ForwardWebsocket handles a WebSocket connection and forwards it to a TCP server.
+func ForwardWebsocket(w http.ResponseWriter, r *http.Request, tcpAddr string) {
 	wsConn, err := websocket.Accept(w, r, nil)
 	if err != nil {
 		log.Printf("websocket accept error: %v", err)
@@ -130,14 +112,14 @@ func (h *WSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// FIXME This is not an optimal status for all exit paths.
 	defer wsConn.Close(websocket.StatusNormalClosure, "")
 
-	tcpConn, err := net.Dial("tcp", h.tcpAddr)
+	tcpConn, err := net.Dial("tcp", tcpAddr)
 	if err != nil {
 		log.Printf("tcp connect error: %v", err)
 		return
 	}
 	defer tcpConn.Close()
 
-	if err := pipeConns(r.Context(), wsConn, tcpConn); err != nil {
+	if err := Pipe(r.Context(), wsConn, tcpConn, true); err != nil {
 		log.Print(err)
 		return
 	}

@@ -20,8 +20,9 @@ var (
 )
 
 func run() error {
-	h := tcp2ws.NewWSHandler(tcpAddr)
-	http.Handle("/", h)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		tcp2ws.ForwardWebsocket(w, r, tcpAddr)
+	})
 	log.Printf("listening on ws://%s", *listen)
 	return http.ListenAndServe(*listen, nil)
 

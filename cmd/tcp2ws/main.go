@@ -47,7 +47,6 @@ func run() error {
 	}()
 	log.Printf("listening on %s", lis.Addr())
 
-	h := tcp2ws.NewTCPHandler(wsURL.String())
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
@@ -58,7 +57,7 @@ func run() error {
 		}
 		log.Printf("handling connection from %s", conn.RemoteAddr())
 		go func() {
-			if err := h.Handle(ctx, conn); err != nil {
+			if err := tcp2ws.ForwardTCP(ctx, conn, wsURL.String()); err != nil {
 				log.Printf("handle error: %v", err)
 			}
 		}()
