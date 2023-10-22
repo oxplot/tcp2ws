@@ -77,8 +77,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("url parse error: %s", err)
 	}
-	if wsURL.Scheme != "ws" && wsURL.Scheme != "wss" {
-		log.Fatalf("url scheme must be ws or wss")
+	if wsURL.Scheme != "ws" && wsURL.Scheme != "wss" && wsURL.Scheme != "http" && wsURL.Scheme != "https" {
+		log.Fatalf("url scheme must be ws, wss, http or https")
 	}
 	if wsURL.Host == "" {
 		log.Fatalf("url host must be set")
