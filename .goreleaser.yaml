@@ -2,3 +2,6 @@ builds:
   - id: tcp2ws
     main: ./cmd/tcp2ws
     binary: tcp2ws
+  - id: ws2tcp
+    main: ./cmd/ws2tcp
+    binary: ws2tcp
