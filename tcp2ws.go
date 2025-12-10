@@ -25,6 +25,7 @@ func ForwardTCP(ctx context.Context, tcpConn net.Conn, websocketURL string) erro
 		return err
 	}
 	defer wsConn.Close(websocket.StatusNormalClosure, "")
+	wsConn.SetReadLimit(-1)
 
 	return Pipe(ctx, wsConn, tcpConn, false)
 }
@@ -37,16 +38,13 @@ func Pipe(ctx context.Context, ws *websocket.Conn, tcp net.Conn, wsPing bool) er
 	go func() {
 		defer cancel()
 		for {
-			t, b, err := ws.Read(ctx)
+			_, b, err := ws.Read(ctx)
 			if err != nil {
 				if errors.Is(err, io.EOF) || errors.As(err, &websocket.CloseError{}) {
 					return
 				}
 				errCh <- fmt.Errorf("conn %s: websocket read error: %v", tcp.RemoteAddr(), err)
 				return
-			}
-			if t != websocket.MessageBinary {
-				continue
 			}
 			if _, err = tcp.Write(b); err != nil {
 				errCh <- fmt.Errorf("conn %s: tcp write error: %v", tcp.RemoteAddr(), err)
@@ -106,6 +104,7 @@ func Pipe(ctx context.Context, ws *websocket.Conn, tcp net.Conn, wsPing bool) er
 // ForwardWebsocket handles a WebSocket connection and forwards it to a TCP server.
 func ForwardWebsocket(w http.ResponseWriter, r *http.Request, tcpAddr string) {
 	wsConn, err := websocket.Accept(w, r, nil)
+	wsConn.SetReadLimit(-1)
 	if err != nil {
 		log.Printf("websocket accept error: %v", err)
 		http.Error(w, "websocket accept error", http.StatusInternalServerError)
