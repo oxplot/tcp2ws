@@ -1,3 +1,5 @@
+// Package tcp2ws provides functions to forward TCP connections to WebSocket
+// servers and vice versa.
 package tcp2ws
 
 import (
@@ -10,7 +12,7 @@ import (
 	"net/http"
 	"time"
 
-	"nhooyr.io/websocket"
+	"github.com/coder/websocket"
 )
 
 // ForwardTCP handles a TCP connection and forwards it to a WebSocket server.
